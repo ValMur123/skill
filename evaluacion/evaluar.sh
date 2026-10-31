@@ -3,6 +3,7 @@
 # y guarda en evaluacion/resultados.md qué skills se activaron y qué respondió Claude.
 # Uso (desde la raíz del repo, en Git Bash): bash evaluacion/evaluar.sh
 set -u
+export PYTHONIOENCODING=utf-8   # sin esto, Windows falla al escribir tildes y símbolos en resultados.md
 RAIZ="$PWD"
 TMP="${TMPDIR:-$HOME}/enaho-eval"   # ruta corta: Windows falla con rutas de más de 260 caracteres
 PEDIDOS=(
@@ -16,10 +17,13 @@ rm -rf "$TMP"; mkdir -p "$TMP"
 for i in 0 1 2; do
   for modo in con sin; do
     d="$TMP/p$((i+1))_$modo"; mkdir -p "$d"
-    cp -r .claude datos pyproject.toml uv.lock .python-version "$d/"
-    extra=(); [ "$modo" = sin ] && extra=(--disallowedTools Skill)
+    cp -r datos pyproject.toml uv.lock .python-version "$d/"
+    # Sin skills: además de bloquear la herramienta Skill, la copia no lleva .claude/,
+    # para que Claude no lea ni corra los scripts de las skills por su cuenta
+    extra=(--disallowedTools Skill)
+    [ "$modo" = con ] && { cp -r .claude "$d/"; extra=(); }
     (cd "$d" && git init -q && claude -p "${PEDIDOS[$i]}" --output-format stream-json --verbose --max-turns 40 \
-      --allowedTools Skill Read Write Edit Glob Grep "Bash(uv:*)" "Bash(python:*)" "Bash(ls:*)" "Bash(mkdir:*)" \
+      --allowedTools Skill Read Write Edit Glob Grep "Bash(uv:*)" "Bash(ls:*)" "PowerShell(uv:*)" \
       "${extra[@]}" > log.jsonl 2>&1) &
   done
 done
